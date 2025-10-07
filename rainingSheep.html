@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprite Control</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: 'Inter', sans-serif;
+        }
+        main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #gameContainer {
+            position: relative;
+        }
+        #gameCanvas {
+            border: 2px solid #333;
+            background-color: #fff;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            display: block;
+        }
+        #startButton {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 1rem 2rem;
+            font-size: 2rem;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(145deg, #3B82F6, #2563EB);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: all 0.2s ease-in-out;
+        }
+        #startButton:hover {
+            transform: translate(-50%, -52%);
+            box-shadow: 0 6px 10px rgba(0,0,0,0.3);
+        }
+    </style>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap">
+</head>
+<body>
+    <main>
+        <div id="gameContainer">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <button id="startButton">Start Game</button>
+        </div>
+        <div style="text-align: center; margin-top: 1rem; font-size: 0.875rem; color: #4B5563;">
+            <p>Caricature image by freddy dendoktoor from <a href="https://www.publicdomainpictures.net/en/view-image.php?image=572081&picture=caricature-old-man-digital-cartoon" target="_blank" rel="noopener noreferrer" style="color: #3B82F6;">PublicDomainPictures.net</a></p>
+            <p>Sheep image from <a href="https://www.needpix.com/photo/160041/sheep-animal-farm-wool-lamb-livestock-mammal-white" target="_blank" rel="noopener noreferrer" style="color: #3B82F6;">needpix.com</a></p>
+        </div>
+    </main>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+
+        // Game State
+        let isGameOver = false;
+        let playerWon = false;
+        let missedCount = 0;
+        let sheepInterval;
+        let gameStarted = false;
+
+        // Player (Sprite) properties
+        const player = {
+            x: canvas.width / 2 - 25,
+            y: canvas.height - 60,
+            width: 50,
+            height: 50,
+            speed: 7,
+            dx: 0
+        };
+
+        // Sheep properties
+        let sheep = [];
+        const sheepWidth = 60;
+        const sheepHeight = 60;
+
+        // Score stack properties
+        let caughtSheep = [];
+        const scoreSheepWidth = 50;
+        const scoreSheepHeight = 50;
+        const stackXPosition = canvas.width - scoreSheepWidth - 10;
+
+        // Image objects
+        const playerImage = new Image();
+        const sheepImage = new Image();
+        
+        // --- Drawing Functions ---
+
+        function drawPlayer() {
+            ctx.drawImage(playerImage, player.x, player.y, player.width, player.height);
+        }
+
+        function drawFallingSheep() {
+            sheep.forEach(s => {
+                ctx.save();
+                ctx.translate(s.x + s.width / 2, s.y + s.height / 2);
+                ctx.rotate(s.rotation);
+                ctx.drawImage(sheepImage, -s.width / 2, -s.height / 2, s.width, s.height);
+                ctx.restore();
+            });
+        }
+        
+        function drawScoreStack() {
+            caughtSheep.forEach((s, index) => {
+                const yPos = canvas.height - (index + 1) * scoreSheepHeight;
+                ctx.save();
+                ctx.translate(stackXPosition + scoreSheepWidth / 2, yPos + scoreSheepHeight / 2);
+                ctx.rotate(s.rotation);
+                ctx.drawImage(sheepImage, -scoreSheepWidth / 2, -scoreSheepHeight / 2, scoreSheepWidth, scoreSheepHeight);
+                ctx.restore();
+            });
+        }
+        
+        function drawUI() {
+            ctx.fillStyle = 'black';
+            ctx.font = '24px Inter';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Misses: ${missedCount} / 3`, 10, 30);
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 72px Inter';
+            ctx.textAlign = 'center';
+            const message = playerWon ? 'You Win!' : 'You Lose!';
+            ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+
+            startButton.textContent = playerWon ? 'Play Again?' : 'Try Again?';
+            startButton.style.display = 'block';
+        }
+
+        // --- Game Logic ---
+
+        function clear() {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87CEEB');
+            gradient.addColorStop(1, '#E0F8FF');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function createSheep() {
+            const x = Math.random() * (stackXPosition - sheepWidth);
+            const y = -sheepHeight;
+            sheep.push({
+                x: x,
+                y: y,
+                width: sheepWidth,
+                height: sheepHeight,
+                speed: Math.random() * 2 + 1,
+                rotation: 0,
+                rotationSpeed: (Math.random() - 0.5) * 0.05
+            });
+        }
+        
+        function endGame(won) {
+            isGameOver = true;
+            playerWon = won;
+            sheep = [];
+            clearInterval(sheepInterval);
+            gameStarted = false;
+        }
+
+        function update() {
+            player.x += player.dx;
+
+            const rightBoundary = stackXPosition - player.width - 5;
+            if (player.x < 0) player.x = 0;
+            if (player.x > rightBoundary) player.x = rightBoundary;
+
+            sheep.forEach((s, index) => {
+                s.y += s.speed;
+                s.rotation += s.rotationSpeed;
+
+                if (
+                    player.x < s.x + s.width &&
+                    player.x + player.width > s.x &&
+                    player.y < s.y + s.height &&
+                    player.y + player.height > s.y
+                ) {
+                    caughtSheep.push(s);
+                    sheep.splice(index, 1);
+                    
+                    if(caughtSheep.length * scoreSheepHeight >= canvas.height){
+                        endGame(true); // Player wins
+                    }
+                }
+
+                if (s.y > canvas.height) {
+                    missedCount++;
+                    sheep.splice(index, 1);
+                    if (missedCount >= 3) {
+                        endGame(false); // Player loses
+                    }
+                }
+            });
+        }
+
+        function gameLoop() {
+            clear();
+            drawScoreStack();
+            drawPlayer();
+
+            if (gameStarted) {
+                update();
+                drawFallingSheep();
+                drawUI();
+            }
+            
+            if(isGameOver){
+                drawGameOver();
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function startGame() {
+            isGameOver = false;
+            playerWon = false;
+            missedCount = 0;
+            sheep = [];
+            caughtSheep = [];
+            player.x = canvas.width / 2 - 25;
+            player.dx = 0;
+
+            gameStarted = true;
+            startButton.style.display = 'none';
+            sheepInterval = setInterval(createSheep, 2000);
+        }
+
+        // --- Event Listeners ---
+
+        function moveRight() { player.dx = player.speed; }
+        function moveLeft() { player.dx = -player.speed; }
+        function stopMoving() { player.dx = 0; }
+
+        function keyDown(e) {
+            if (!gameStarted || isGameOver) return;
+            if (e.key === 'ArrowRight' || e.key === 'Right') moveRight();
+            else if (e.key === 'ArrowLeft' || e.key === 'Left') moveLeft();
+        }
+
+        function keyUp(e) {
+            if (e.key === 'ArrowRight' || e.key === 'Right' || e.key === 'ArrowLeft' || e.key === 'Left') {
+                stopMoving();
+            }
+        }
+
+        document.addEventListener('keydown', keyDown);
+        document.addEventListener('keyup', keyUp);
+        startButton.addEventListener('click', startGame);
+        
+        // --- Preload Assets & Start ---
+
+        let assetsLoaded = 0;
+        function onAssetLoad() {
+            assetsLoaded++;
+            if (assetsLoaded === 2) {
+                gameLoop(); // Start drawing, but game logic is paused
+            }
+        }
+
+        playerImage.onload = onAssetLoad;
+        playerImage.onerror = () => { console.error("Failed to load player image."); onAssetLoad(); };
+        playerImage.src = 'https://www.publicdomainpictures.net/pictures/580000/velka/caricature-old-man-digital-cartoon.png';
+
+        sheepImage.onload = onAssetLoad;
+        sheepImage.onerror = () => { console.error("Failed to load sheep image."); onAssetLoad(); };
+        sheepImage.src = 'https://storage.needpix.com/rsynced_images/sheep-160041_1280.png';
+
+    </script>
+</body>
+</html>
+
