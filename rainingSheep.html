@@ -13,6 +13,7 @@
             margin: 0;
             background-color: #f0f0f0;
             font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrolling on mobile */
         }
         main {
             display: flex;
@@ -636,8 +637,32 @@
             }
         }
 
+        function handlePointerDown(e) {
+            if (!gameStarted || isGameOver) return;
+            e.preventDefault();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const touchX = clientX - canvas.getBoundingClientRect().left;
+            if (touchX < player.x + player.width / 2) {
+                moveLeft();
+            } else {
+                moveRight();
+            }
+        }
+
+        function handlePointerUp(e) {
+            e.preventDefault();
+            stopMoving();
+        }
+
         document.addEventListener('keydown', keyDown);
         document.addEventListener('keyup', keyUp);
+        
+        // Mouse and Touch events
+        canvas.addEventListener('mousedown', handlePointerDown);
+        canvas.addEventListener('mouseup', handlePointerUp);
+        canvas.addEventListener('touchstart', handlePointerDown, { passive: false });
+        canvas.addEventListener('touchend', handlePointerUp, { passive: false });
+        
         startButton.addEventListener('click', handleButtonClick);
 
     </script>
