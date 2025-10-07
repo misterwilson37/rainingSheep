@@ -104,6 +104,9 @@
         let currentLevel = 1;
         let levelSpeedMultiplier = 1;
         let levelCatchGoal = 10;
+        let totalSheepSaved = 0;
+        let totalSheepLost = 0;
+        let totalGoldenHits = 0;
         
         // Input state
         let isPointerActive = false;
@@ -152,7 +155,7 @@
         let sheep = [];
         const sheepWidth = 60;
         const sheepHeight = 60;
-        const scaredPhrases = ["Eep!", "Scary!", "Get me out of here!"];
+        const scaredPhrases = ["Eep!", "Scary!", "Get me out of here!", "AAHHH!", "Oh no!"];
 
         // Score stack properties
         let caughtSheep = [];
@@ -176,11 +179,21 @@
             sheep1: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep01.png',
             sheep2: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep02.png',
             sheep3: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep03.png',
+            sheep4: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep04.png',
+            sheep5: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep05.png',
+            sheep6: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep06.png',
+            sheep7: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep07.png',
+            sheep8: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep08.png',
+            sheep9: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep09.png',
             goldenSheep: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenSheep.png',
             goldenBull: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenBull.png',
             goldenTractor: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenTractor.png',
             goldenCow: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenCow.png',
+            goldenCowLeft: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenCowLeft.png',
+            goldenCowRight: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenCowRight.png',
             scarecrow: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/scarecrow.png',
+            scarecrowLeft: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenScarecrowLeft.png',
+            scarecrowRight: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenScarecrowRight.png',
             grave1: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/grave1.png',
             grave2: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/grave2.png',
             grave3: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/grave3.png',
@@ -196,7 +209,7 @@
         function onAssetLoad() {
             assetsLoaded++;
             if (assetsLoaded === assetsToLoad) {
-                sheepImages.push(allImages.sheep1, allImages.sheep2, allImages.sheep3);
+                sheepImages.push(allImages.sheep1, allImages.sheep2, allImages.sheep3, allImages.sheep4, allImages.sheep5, allImages.sheep6, allImages.sheep7, allImages.sheep8, allImages.sheep9);
                 graveImages.push(allImages.grave1, allImages.grave2, allImages.grave3);
                 goldenImages.push(allImages.goldenSheep, allImages.goldenBull, allImages.goldenTractor);
                 cow.image = allImages.goldenCow;
@@ -236,14 +249,26 @@
         }
         
         function drawCow() {
-            if (cow.image && cow.image.complete && cow.image.naturalHeight !== 0) {
-                ctx.drawImage(cow.image, cow.x, cow.y, cow.width, cow.height);
+            let imageToDraw = allImages.goldenCow;
+            if (cow.dx < 0 && allImages.goldenCowLeft) {
+                imageToDraw = allImages.goldenCowLeft;
+            } else if (cow.dx > 0 && allImages.goldenCowRight) {
+                imageToDraw = allImages.goldenCowRight;
+            }
+            if (imageToDraw && imageToDraw.complete && imageToDraw.naturalHeight !== 0) {
+                ctx.drawImage(imageToDraw, cow.x, cow.y, cow.width, cow.height);
             }
         }
 
         function drawScarecrow() {
-            if (scarecrow.image && scarecrow.image.complete && scarecrow.image.naturalHeight !== 0) {
-                ctx.drawImage(scarecrow.image, scarecrow.x, scarecrow.y, scarecrow.width, scarecrow.height);
+            let imageToDraw = allImages.scarecrow;
+             if (scarecrow.dx < 0 && allImages.scarecrowLeft) {
+                imageToDraw = allImages.scarecrowLeft;
+            } else if (scarecrow.dx > 0 && allImages.scarecrowRight) {
+                imageToDraw = allImages.scarecrowRight;
+            }
+            if (imageToDraw && imageToDraw.complete && imageToDraw.naturalHeight !== 0) {
+                ctx.drawImage(imageToDraw, scarecrow.x, scarecrow.y, scarecrow.width, scarecrow.height);
             }
         }
 
@@ -269,11 +294,14 @@
         
         function drawFleeingText() {
             sheep.forEach(s => {
-                if (s.isScared && s.scaredText) {
+                if (s.scaredText && s.scaredText.alpha > 0) {
+                    ctx.save();
+                    ctx.globalAlpha = s.scaredText.alpha;
                     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
                     ctx.font = '16px Inter';
                     ctx.textAlign = 'center';
-                    ctx.fillText(s.scaredText, s.x + s.width / 2, s.y - 10);
+                    ctx.fillText(s.scaredText.text, s.x + s.width / 2, s.y - 10);
+                    ctx.restore();
                 }
             });
         }
@@ -294,14 +322,11 @@
         
         function drawUI() {
             ctx.fillStyle = 'black';
-            ctx.font = '24px Inter';
+            ctx.font = 'bold 24px Inter';
             ctx.textAlign = 'left';
-            ctx.fillText(`Level: ${currentLevel}`, 10, 60);
+            ctx.fillText(`Level: ${currentLevel}`, 10, 30);
             const goalText = `Goal: ${caughtSheep.length} / ${levelCatchGoal}`;
-            ctx.fillText(goalText, 10, 90);
-
-            ctx.textAlign = 'center';
-            ctx.fillText(`Golden Sheep Chance: ${Math.round(goldenSheepChance * 100)}%`, GAME_WIDTH / 2, 30);
+            ctx.fillText(goalText, 10, 60);
         }
 
         function drawOwMessage() {
@@ -370,12 +395,19 @@
                 }
                 ctx.fillStyle = 'white';
                 ctx.font = 'bold 36px Inter';
-                ctx.fillText(loseReason, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 60);
+                const finalLoseReason = `${loseReason} But you saved ${totalSheepSaved + caughtSheep.length} sheep.`;
+                ctx.fillText(finalLoseReason, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 60);
             }
-
+            
+            // --- Draw final stats on all end screens ---
             ctx.fillStyle = 'white';
-            ctx.font = 'bold 28px Inter';
-            ctx.fillText(`You saved ${caughtSheep.length} sheep!`, GAME_WIDTH / 2, finalScoreY);
+            ctx.font = 'bold 24px Inter';
+            const finalSavedCount = playerWon ? totalSheepSaved : totalSheepSaved + caughtSheep.length;
+            const statsY = playerWon ? GAME_HEIGHT / 2 + 50 : GAME_HEIGHT / 2 + 110;
+
+            ctx.fillText(`Total Sheep Saved: ${finalSavedCount}`, GAME_WIDTH / 2, statsY);
+            ctx.fillText(`Total Sheep Lost: ${totalSheepLost}`, GAME_WIDTH / 2, statsY + 30);
+            ctx.fillText(`Total Golden Hits: ${totalGoldenHits}`, GAME_WIDTH / 2, statsY + 60);
             
             if (playerWon && currentLevel < 8) {
                 startButton.textContent = `Start Level ${currentLevel + 1}`;
@@ -416,16 +448,24 @@
                 newSheep = { isGolden: false, image: sheepImages[Math.floor(Math.random() * sheepImages.length)], speed: speed };
             }
             
-            sheep.push({
+            const newSheepObject = {
                 x: x, y: y, width: sheepWidth, height: sheepHeight,
                 sx: 0, 
                 hasBounced: false,
                 isScared: false,
                 scaredText: null,
                 originalSpeed: speed,
-                rotation: 0, rotationSpeed: (Math.random() - 0.5) * 0.05,
+                rotation: 0, 
+                rotationSpeed: (Math.random() - 0.5) * 0.05,
                 ...newSheep
-            });
+            };
+
+            if (newSheepObject.image === allImages.goldenBull) {
+                newSheepObject.rotationSpeed = 0.015; // A gentle speed
+                newSheepObject.rotationDirection = 1;
+            }
+            
+            sheep.push(newSheepObject);
         }
         
         function endGame(won, reason = null) {
@@ -434,6 +474,7 @@
             if (won) {
                  if (currentLevel < 8) {
                     gameOverMessage = `Level ${currentLevel} Complete!`;
+                    totalSheepSaved += caughtSheep.length;
                 } else {
                     gameOverMessage = 'You Win!';
                 }
@@ -487,14 +528,33 @@
 
                 const playerHitbox = { x: player.x + player.width * 0.25, y: player.y, width: player.width * 0.5, height: player.height };
 
-                if (s.hasBounced) s.speed += 0.2; 
-                if (s.isScared) s.speed -= 0.2;
-
-                s.y += s.speed;
-                s.x += s.sx;
+                if (s.isScared) {
+                    if (s.scarePause > 0) {
+                        s.scarePause--;
+                    } else {
+                         s.speed -= 0.2;
+                         if (s.scaredText && s.scaredText.alpha > 0) {
+                            s.scaredText.alpha -= 0.02;
+                        }
+                    }
+                } else if (s.hasBounced) {
+                    s.speed += 0.2; 
+                }
                 
-                if(s.speed < 0) s.rotation -= s.rotationSpeed * 2;
-                else s.rotation += s.rotationSpeed;
+                if (! (s.isScared && s.scarePause > 0)) {
+                    s.y += s.speed;
+                    s.x += s.sx;
+                }
+                
+                if (s.isGolden && s.image === allImages.goldenBull) {
+                    if (s.rotation > 0.5 || s.rotation < -0.5) {
+                        s.rotationDirection *= -1;
+                    }
+                    s.rotation += s.rotationSpeed * s.rotationDirection;
+                } else {
+                    if(s.speed < 0) s.rotation -= s.rotationSpeed * 2;
+                    else s.rotation += s.rotationSpeed;
+                }
 
                 if ((s.hasBounced && (s.x + s.width < 0 || s.x > rightBoundary)) || (s.isScared && s.y < -s.height)) {
                     sheep.splice(i, 1);
@@ -506,9 +566,15 @@
                     const scareZone = { x: scarecrow.x - 40, y: scarecrow.y - 40, width: scarecrow.width + 80, height: scarecrow.height + 80 };
                     if(s.x < scareZone.x + scareZone.width && s.x + s.width > scareZone.x && s.y < scareZone.y + scareZone.height && s.y + s.height > scareZone.y){
                         s.isScared = true;
-                        s.speed = -8;
-                        s.sx = s.x < scarecrow.x + scarecrow.width / 2 ? -2 : 2;
-                        s.scaredText = scaredPhrases[Math.floor(Math.random() * scaredPhrases.length)];
+                        s.speed = 0; // Pause
+                        s.scarePause = 50; // Pause for 50 frames
+                        s.scaredText = { text: scaredPhrases[Math.floor(Math.random() * scaredPhrases.length)], alpha: 1.0 };
+                        setTimeout(() => {
+                           if(s.isScared) {
+                                s.speed = -8;
+                                s.sx = s.x < scarecrow.x + scarecrow.width / 2 ? -2 : 2;
+                           }
+                        }, 800); // .8 seconds
                         booMessage.text = 'BOO!'; booMessage.alpha = 1.0; booMessage.x = scarecrow.x + scarecrow.width / 2; booMessage.y = scarecrow.y - 10;
                     }
                 }
@@ -530,6 +596,7 @@
                 if (playerHitbox.x < s.x + s.width && playerHitbox.x + playerHitbox.width > s.x && playerHitbox.y < s.y + s.height && playerHitbox.y + playerHitbox.height > s.y) {
                     if (s.isGolden) {
                         goldenHits++;
+                        totalGoldenHits++;
                         owMessage.text = 'OW!'; owMessage.alpha = 1.0; owMessage.x = player.x + player.width / 2; owMessage.y = player.y - 10;
                         if (goldenHits >= 4) {
                             endGame(false, "You've been smooshed!");
@@ -556,6 +623,7 @@
                 if (s.y > GAME_HEIGHT) {
                     if (!s.isGolden && !s.isScared) {
                         missedCount++;
+                        totalSheepLost++;
                         if (missedGraves.length < 3) {
                             const graveWidth = 50;
                             const graveHeight = 60;
@@ -636,6 +704,12 @@
             owMessage.alpha = 0;
             mooMessage.alpha = 0;
             booMessage.alpha = 0;
+
+            if (level === 1) {
+                totalSheepSaved = 0; // Reset total count only on a new game
+                totalSheepLost = 0;
+                totalGoldenHits = 0;
+            }
 
             clearInterval(sheepInterval);
 
@@ -731,4 +805,6 @@
     </script>
 </body>
 </html>
+
+
 
