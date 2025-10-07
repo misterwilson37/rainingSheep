@@ -134,7 +134,9 @@
             goldenCow: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenCow.png',
             playerDefault: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/farmer.png',
             playerLeft: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/farmerLeft.png',
-            playerRight: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/farmerRight.png'
+            playerRight: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/farmerRight.png',
+            youWin: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/youWin.png',
+            youLose: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/youLose.png'
         };
 
         assetsToLoad = Object.keys(imageUrls).length;
@@ -252,17 +254,26 @@
         function drawGameOver() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = 'white';
             ctx.textAlign = 'center';
 
             if (gameOverMessage.includes('smooshed')) {
+                ctx.fillStyle = 'white';
                 ctx.font = 'bold 48px Inter';
                 const lines = gameOverMessage.split('!');
                 ctx.fillText(lines[0] + '!', canvas.width / 2, canvas.height / 2 - 30);
                 ctx.fillText(lines[1], canvas.width / 2, canvas.height / 2 + 30);
-            } else {
-                ctx.font = 'bold 72px Inter';
-                ctx.fillText(gameOverMessage, canvas.width / 2, canvas.height / 2);
+            } else if (gameOverMessage.includes('Level')) {
+                 ctx.fillStyle = 'white';
+                 ctx.font = 'bold 72px Inter';
+                 ctx.fillText(gameOverMessage, canvas.width / 2, canvas.height / 2);
+            }
+            else {
+                const image = playerWon ? allImages.youWin : allImages.youLose;
+                if (image && image.complete && image.naturalHeight !== 0) {
+                    const imgWidth = 400;
+                    const imgHeight = 200;
+                    ctx.drawImage(image, canvas.width / 2 - imgWidth / 2, canvas.height / 2 - imgHeight / 2 - 50, imgWidth, imgHeight);
+                }
             }
 
             if (playerWon && currentLevel < 4) {
@@ -292,18 +303,22 @@
         function createSheep() {
             const x = Math.random() * (stackXPosition - sheepWidth);
             const y = -sheepHeight;
+            let speed;
             let newSheep;
 
             if (Math.random() < goldenSheepChance) {
-                newSheep = { isGolden: true, image: allImages.goldenSheep, speed: (Math.random() * 2 + 2) * levelSpeedMultiplier };
+                speed = (Math.random() * 2 + 2) * levelSpeedMultiplier;
+                newSheep = { isGolden: true, image: allImages.goldenSheep, speed: speed };
             } else {
-                newSheep = { isGolden: false, image: sheepImages[Math.floor(Math.random() * sheepImages.length)], speed: (Math.random() * 2 + 1) * levelSpeedMultiplier };
+                speed = (Math.random() * 2 + 1) * levelSpeedMultiplier;
+                newSheep = { isGolden: false, image: sheepImages[Math.floor(Math.random() * sheepImages.length)], speed: speed };
             }
             
             sheep.push({
                 x: x, y: y, width: sheepWidth, height: sheepHeight,
                 sx: 0, // horizontal speed for arc
                 hasBounced: false,
+                originalSpeed: speed,
                 rotation: 0, rotationSpeed: (Math.random() - 0.5) * 0.05,
                 ...newSheep
             });
@@ -343,10 +358,10 @@
             for (let i = sheep.length - 1; i >= 0; i--) {
                 const s = sheep[i];
                 
-                // This check prevents a crash if an element is unexpectedly undefined.
                 if (!s) continue;
 
-                // Apply gravity to bounced sheep to create an arc
+                const playerHitbox = { x: player.x + player.width * 0.25, y: player.y, width: player.width * 0.5, height: player.height };
+
                 if (s.hasBounced) {
                     s.speed += 0.2; 
                 }
@@ -357,19 +372,17 @@
                 if(s.speed < 0) s.rotation -= s.rotationSpeed;
                 else s.rotation += s.rotationSpeed;
 
-                // Remove bounced sheep that go off-screen horizontally without penalty
                 if (s.hasBounced && (s.x + s.width < 0 || s.x > stackXPosition)) {
                     sheep.splice(i, 1);
                     continue; 
                 }
 
-                // Bounce sheep off cow's umbrella in levels 3+
                 if(currentLevel >= 3){
-                    const umbrella = { x: cow.x, y: cow.y - 30, width: cow.width, height: 30};
+                    const umbrella = { x: cow.x + 20, y: cow.y + 10, width: cow.width - 40, height: 40 };
                     if(s.x < umbrella.x + umbrella.width && s.x + s.width > umbrella.x && s.y < umbrella.y + umbrella.height && s.y + s.height > umbrella.y){
-                        if(s.speed >= 0){ // only bounce if falling down
-                           s.speed = -8; // Set a fixed upward speed for a consistent bounce height
-                           s.sx = (Math.random() - 0.5) * 4; // Give it a slight horizontal push for an arc
+                        if(s.speed >= 0){ 
+                           s.speed = -6 - s.originalSpeed; // Bounce speed now depends on original fall speed
+                           s.sx = (Math.random() - 0.5) * 4; 
                            s.y = umbrella.y - s.height;
                            s.hasBounced = true;
                            mooMessage.text = 'MOO!'; mooMessage.alpha = 1.0; mooMessage.x = cow.x + cow.width / 2; mooMessage.y = cow.y - 10;
@@ -377,8 +390,7 @@
                     }
                 }
 
-                // Collision with player
-                if (player.x < s.x + s.width && player.x + player.width > s.x && player.y < s.y + s.height && player.y + player.height > s.y) {
+                if (playerHitbox.x < s.x + s.width && playerHitbox.x + playerHitbox.width > s.x && playerHitbox.y < s.y + s.height && playerHitbox.y + playerHitbox.height > s.y) {
                     if (s.isGolden) {
                         goldenHits++;
                         owMessage.text = 'OW!'; owMessage.alpha = 1.0; owMessage.x = player.x + player.width / 2; owMessage.y = player.y - 10;
