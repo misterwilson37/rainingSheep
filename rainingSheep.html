@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sprite Control</title>
+    <title>Raining Sheep</title>
     <style>
         body {
             display: flex;
@@ -31,7 +31,7 @@
         }
         #startButton {
             position: absolute;
-            top: 65%;
+            top: 80%; /* Moved button down */
             left: 50%;
             transform: translate(-50%, -50%);
             padding: 1rem 2rem;
@@ -74,8 +74,10 @@
         let goldenSheepChance = 0.1;
         let goldenHits = 0;
         let gameOverMessage = '';
+        let loseReason = '';
         let owMessage = { text: '', alpha: 0, x: 0, y: 0 };
         let mooMessage = { text: '', alpha: 0, x: 0, y: 0 };
+        let booMessage = { text: '', alpha: 0, x: 0, y: 0 };
         let currentLevel = 1;
         let levelSpeedMultiplier = 1;
         let levelCatchGoal = 10;
@@ -107,21 +109,37 @@
             dx: 2,
             image: null
         };
+        
+        // Scarecrow properties
+        const scarecrow = {
+            x: 50,
+            y: canvas.height - 110,
+            width: 80,
+            height: 100,
+            speed: 1.5,
+            dx: 1.5,
+            image: null
+        };
 
         // Sheep properties
         let sheep = [];
         const sheepWidth = 60;
         const sheepHeight = 60;
+        const scaredPhrases = ["Eep!", "Scary!", "Get me out of here!"];
 
         // Score stack properties
         let caughtSheep = [];
-        const scoreSheepWidth = 50;
-        const scoreSheepHeight = 50;
-        const stackXPosition = canvas.width - scoreSheepWidth - 10;
+        let scoreSheepWidth = 50;
+        let scoreSheepHeight = 50;
+        
+        // Graves properties
+        let missedGraves = [];
         
         // --- Image Loading ---
         const allImages = {};
         const sheepImages = [];
+        const graveImages = [];
+        const goldenImages = [];
         let assetsToLoad = 0;
         let assetsLoaded = 0;
 
@@ -131,7 +149,13 @@
             sheep2: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep02.png',
             sheep3: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep03.png',
             goldenSheep: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenSheep.png',
+            goldenBull: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenBull.png',
+            goldenTractor: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenTractor.png',
             goldenCow: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenCow.png',
+            scarecrow: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/scarecrow.png',
+            grave1: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/grave1.png',
+            grave2: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/grave2.png',
+            grave3: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/grave3.png',
             playerDefault: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/farmer.png',
             playerLeft: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/farmerLeft.png',
             playerRight: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/farmerRight.png',
@@ -145,7 +169,10 @@
             assetsLoaded++;
             if (assetsLoaded === assetsToLoad) {
                 sheepImages.push(allImages.sheep1, allImages.sheep2, allImages.sheep3);
+                graveImages.push(allImages.grave1, allImages.grave2, allImages.grave3);
+                goldenImages.push(allImages.goldenSheep, allImages.goldenBull, allImages.goldenTractor);
                 cow.image = allImages.goldenCow;
+                scarecrow.image = allImages.scarecrow;
                 gameLoop();
             }
         }
@@ -186,6 +213,20 @@
             }
         }
 
+        function drawScarecrow() {
+            if (scarecrow.image && scarecrow.image.complete && scarecrow.image.naturalHeight !== 0) {
+                ctx.drawImage(scarecrow.image, scarecrow.x, scarecrow.y, scarecrow.width, scarecrow.height);
+            }
+        }
+
+        function drawGraves() {
+            missedGraves.forEach(grave => {
+                if (grave.image && grave.image.complete && grave.image.naturalHeight !== 0) {
+                    ctx.drawImage(grave.image, grave.x, grave.y, grave.width, grave.height);
+                }
+            });
+        }
+
         function drawFallingSheep() {
             sheep.forEach(s => {
                 if (s.image && s.image.complete && s.image.naturalHeight !== 0) {
@@ -198,7 +239,19 @@
             });
         }
         
+        function drawFleeingText() {
+            sheep.forEach(s => {
+                if (s.isScared && s.scaredText) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                    ctx.font = '16px Inter';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(s.scaredText, s.x + s.width / 2, s.y - 10);
+                }
+            });
+        }
+        
         function drawScoreStack() {
+            const stackXPosition = canvas.width - scoreSheepWidth - 10;
             caughtSheep.forEach((s, index) => {
                 const yPos = canvas.height - (index + 1) * scoreSheepHeight;
                  if (s.image && s.image.complete && s.image.naturalHeight !== 0) {
@@ -215,9 +268,8 @@
             ctx.fillStyle = 'black';
             ctx.font = '24px Inter';
             ctx.textAlign = 'left';
-            ctx.fillText(`Misses: ${missedCount} / 3`, 10, 30);
             ctx.fillText(`Level: ${currentLevel}`, 10, 60);
-            const goalText = currentLevel === 4 ? `Goal: Fill the stack!` : `Goal: ${caughtSheep.length} / ${levelCatchGoal}`;
+            const goalText = `Goal: ${caughtSheep.length} / ${levelCatchGoal}`;
             ctx.fillText(goalText, 10, 90);
 
             ctx.textAlign = 'center';
@@ -240,7 +292,7 @@
             if (mooMessage.alpha > 0) {
                 ctx.save();
                 ctx.globalAlpha = mooMessage.alpha;
-                ctx.fillStyle = '#FFD700'; // Golden color
+                ctx.fillStyle = '#FFD700';
                 ctx.strokeStyle = 'black';
                 ctx.lineWidth = 2;
                 ctx.font = 'bold 40px Inter';
@@ -251,32 +303,56 @@
             }
         }
 
+        function drawBooMessage() {
+            if (booMessage.alpha > 0) {
+                ctx.save();
+                ctx.globalAlpha = booMessage.alpha;
+                ctx.fillStyle = '#A0522D';
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 2;
+                ctx.font = 'bold 40px Inter';
+                ctx.textAlign = 'center';
+                ctx.strokeText(booMessage.text, booMessage.x, booMessage.y);
+                ctx.fillText(booMessage.text, booMessage.x, booMessage.y);
+                ctx.restore();
+            }
+        }
+
         function drawGameOver() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.textAlign = 'center';
+            
+            const finalScoreY = canvas.height / 2 + 110;
 
-            if (gameOverMessage.includes('smooshed')) {
-                ctx.fillStyle = 'white';
-                ctx.font = 'bold 48px Inter';
-                const lines = gameOverMessage.split('!');
-                ctx.fillText(lines[0] + '!', canvas.width / 2, canvas.height / 2 - 30);
-                ctx.fillText(lines[1], canvas.width / 2, canvas.height / 2 + 30);
-            } else if (gameOverMessage.includes('Level')) {
-                 ctx.fillStyle = 'white';
-                 ctx.font = 'bold 72px Inter';
-                 ctx.fillText(gameOverMessage, canvas.width / 2, canvas.height / 2);
-            }
-            else {
-                const image = playerWon ? allImages.youWin : allImages.youLose;
+            if (playerWon) {
+                 if (gameOverMessage.includes('Level')) {
+                     ctx.fillStyle = 'white';
+                     ctx.font = 'bold 72px Inter';
+                     ctx.fillText(gameOverMessage, canvas.width / 2, canvas.height / 2);
+                 } else {
+                    const image = allImages.youWin;
+                    if (image && image.complete && image.naturalHeight !== 0) {
+                        const imgWidth = 400; const imgHeight = 200;
+                        ctx.drawImage(image, canvas.width / 2 - imgWidth / 2, canvas.height / 2 - imgHeight / 2 - 50, imgWidth, imgHeight);
+                    }
+                 }
+            } else { // Player Lost
+                const image = allImages.youLose;
                 if (image && image.complete && image.naturalHeight !== 0) {
-                    const imgWidth = 400;
-                    const imgHeight = 200;
-                    ctx.drawImage(image, canvas.width / 2 - imgWidth / 2, canvas.height / 2 - imgHeight / 2 - 50, imgWidth, imgHeight);
+                    const imgWidth = 400; const imgHeight = 200;
+                    ctx.drawImage(image, canvas.width / 2 - imgWidth / 2, canvas.height / 2 - imgHeight / 2 - 90, imgWidth, imgHeight);
                 }
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 36px Inter';
+                ctx.fillText(loseReason, canvas.width / 2, canvas.height / 2 + 60);
             }
 
-            if (playerWon && currentLevel < 4) {
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 28px Inter';
+            ctx.fillText(`You saved ${caughtSheep.length} sheep!`, canvas.width / 2, finalScoreY);
+
+            if (playerWon && currentLevel < 8) {
                 startButton.textContent = `Start Level ${currentLevel + 1}`;
             } else if (playerWon) {
                  startButton.textContent = 'You Win! Play Again?';
@@ -301,14 +377,15 @@
         }
 
         function createSheep() {
-            const x = Math.random() * (stackXPosition - sheepWidth);
+            const x = Math.random() * (canvas.width - scoreSheepWidth - 10 - sheepWidth);
             const y = -sheepHeight;
             let speed;
             let newSheep;
 
             if (Math.random() < goldenSheepChance) {
+                const randomGoldenImage = goldenImages[Math.floor(Math.random() * goldenImages.length)];
                 speed = (Math.random() * 2 + 2) * levelSpeedMultiplier;
-                newSheep = { isGolden: true, image: allImages.goldenSheep, speed: speed };
+                newSheep = { isGolden: true, image: randomGoldenImage, speed: speed };
             } else {
                 speed = (Math.random() * 2 + 1) * levelSpeedMultiplier;
                 newSheep = { isGolden: false, image: sheepImages[Math.floor(Math.random() * sheepImages.length)], speed: speed };
@@ -316,24 +393,27 @@
             
             sheep.push({
                 x: x, y: y, width: sheepWidth, height: sheepHeight,
-                sx: 0, // horizontal speed for arc
+                sx: 0, 
                 hasBounced: false,
+                isScared: false,
+                scaredText: null,
                 originalSpeed: speed,
                 rotation: 0, rotationSpeed: (Math.random() - 0.5) * 0.05,
                 ...newSheep
             });
         }
         
-        function endGame(won, message = null) {
+        function endGame(won, reason = null) {
             isGameOver = true;
             playerWon = won;
-            if (message) {
-                gameOverMessage = message;
-            } else if (won && currentLevel < 4) {
-                gameOverMessage = `Level ${currentLevel} Complete!`;
-            }
-            else {
-                gameOverMessage = won ? 'You Win!' : 'You Lose!';
+            if (won) {
+                 if (currentLevel < 8) {
+                    gameOverMessage = `Level ${currentLevel} Complete!`;
+                } else {
+                    gameOverMessage = 'You Win!';
+                }
+            } else {
+                loseReason = reason;
             }
             sheep = [];
             clearInterval(sheepInterval);
@@ -343,45 +423,63 @@
         function update() {
             player.x += player.dx;
 
-            const rightBoundary = stackXPosition - player.width - 5;
+            const rightBoundary = canvas.width - scoreSheepWidth - 10 - player.width;
             if (player.x < 0) player.x = 0;
             if (player.x > rightBoundary) player.x = rightBoundary;
 
-            if(currentLevel >= 3) {
+            // Cow Movement
+            if(currentLevel === 3 || currentLevel === 4 || currentLevel >= 7) {
                 cow.x += cow.dx;
-                if(cow.x + cow.width > stackXPosition || cow.x < 0){
+                if(cow.x + cow.width > rightBoundary || cow.x < 0){
                     cow.dx *= -1;
                 }
             }
+            // Scarecrow Movement
+            if(currentLevel >= 5) {
+                scarecrow.x += scarecrow.dx;
+                if(scarecrow.x + scarecrow.width > rightBoundary || scarecrow.x < 0){
+                    scarecrow.dx *= -1;
+                }
+            }
 
-            // Use a reverse for-loop to safely remove items while iterating
             for (let i = sheep.length - 1; i >= 0; i--) {
                 const s = sheep[i];
-                
                 if (!s) continue;
 
                 const playerHitbox = { x: player.x + player.width * 0.25, y: player.y, width: player.width * 0.5, height: player.height };
 
-                if (s.hasBounced) {
-                    s.speed += 0.2; 
-                }
+                if (s.hasBounced) s.speed += 0.2; 
+                if (s.isScared) s.speed -= 0.2;
 
                 s.y += s.speed;
                 s.x += s.sx;
                 
-                if(s.speed < 0) s.rotation -= s.rotationSpeed;
+                if(s.speed < 0) s.rotation -= s.rotationSpeed * 2;
                 else s.rotation += s.rotationSpeed;
 
-                if (s.hasBounced && (s.x + s.width < 0 || s.x > stackXPosition)) {
+                if ((s.hasBounced && (s.x + s.width < 0 || s.x > rightBoundary)) || (s.isScared && s.y < -s.height)) {
                     sheep.splice(i, 1);
                     continue; 
                 }
 
-                if(currentLevel >= 3){
+                // Scarecrow logic
+                if(currentLevel >= 5 && !s.isGolden && !s.hasBounced && !s.isScared){
+                    const scareZone = { x: scarecrow.x - 40, y: scarecrow.y - 40, width: scarecrow.width + 80, height: scarecrow.height + 80 };
+                    if(s.x < scareZone.x + scareZone.width && s.x + s.width > scareZone.x && s.y < scareZone.y + scareZone.height && s.y + s.height > scareZone.y){
+                        s.isScared = true;
+                        s.speed = -8;
+                        s.sx = s.x < scarecrow.x + scarecrow.width / 2 ? -2 : 2;
+                        s.scaredText = scaredPhrases[Math.floor(Math.random() * scaredPhrases.length)];
+                        booMessage.text = 'BOO!'; booMessage.alpha = 1.0; booMessage.x = scarecrow.x + scarecrow.width / 2; booMessage.y = scarecrow.y - 10;
+                    }
+                }
+
+                // Cow logic
+                if((currentLevel === 3 || currentLevel === 4 || currentLevel >= 7) && !s.isScared){
                     const umbrella = { x: cow.x + 20, y: cow.y + 10, width: cow.width - 40, height: 40 };
                     if(s.x < umbrella.x + umbrella.width && s.x + s.width > umbrella.x && s.y < umbrella.y + umbrella.height && s.y + s.height > umbrella.y){
                         if(s.speed >= 0){ 
-                           s.speed = -6 - s.originalSpeed; // Bounce speed now depends on original fall speed
+                           s.speed = -6 - s.originalSpeed;
                            s.sx = (Math.random() - 0.5) * 4; 
                            s.y = umbrella.y - s.height;
                            s.hasBounced = true;
@@ -395,7 +493,7 @@
                         goldenHits++;
                         owMessage.text = 'OW!'; owMessage.alpha = 1.0; owMessage.x = player.x + player.width / 2; owMessage.y = player.y - 10;
                         if (goldenHits >= 4) {
-                            endGame(false, "You've been smooshed! Game over!");
+                            endGame(false, "You've been smooshed!");
                         } else {
                             player.height = originalPlayerState.height * (1 - goldenHits * 0.25);
                             player.speed = originalPlayerState.speed * (1 - goldenHits * 0.25);
@@ -406,10 +504,10 @@
                         goldenSheepChance += 0.05;
                         if (goldenSheepChance > 0.8) goldenSheepChance = 0.8;
                         
-                        if(currentLevel < 4 && caughtSheep.length >= levelCatchGoal){
+                        if(currentLevel < 8 && caughtSheep.length >= levelCatchGoal){
                             endGame(true);
-                        } else if (currentLevel === 4 && caughtSheep.length >= levelCatchGoal) {
-                            endGame(true);
+                        } else if (currentLevel === 8 && caughtSheep.length >= levelCatchGoal) {
+                            endGame(true, 'You Win!');
                         }
                     }
                     sheep.splice(i, 1);
@@ -417,9 +515,22 @@
                 }
 
                 if (s.y > canvas.height) {
-                    if (!s.isGolden) {
+                    if (!s.isGolden && !s.isScared) {
                         missedCount++;
-                        if (missedCount >= 3) endGame(false);
+                        if (missedGraves.length < 3) {
+                            const graveWidth = 50;
+                            const graveHeight = 60;
+                            const newGrave = {
+                                image: graveImages[Math.floor(Math.random() * graveImages.length)],
+                                x: 10 + (missedGraves.length * (graveWidth + 5)),
+                                y: canvas.height - graveHeight,
+                                width: graveWidth,
+                                height: graveHeight
+                            };
+                            missedGraves.push(newGrave);
+                        }
+
+                        if (missedCount >= 3) endGame(false, "You missed too many sheep!");
                     }
                     sheep.splice(i, 1);
                     continue;
@@ -428,19 +539,25 @@
 
             if (owMessage.alpha > 0) owMessage.alpha -= 0.02;
             if (mooMessage.alpha > 0) mooMessage.alpha -= 0.02;
+            if (booMessage.alpha > 0) booMessage.alpha -= 0.02;
         }
 
         function gameLoop() {
             clear();
+            drawGraves();
             drawScoreStack();
-            if(currentLevel >= 3) drawCow();
+            if(currentLevel === 3 || currentLevel === 4 || currentLevel >= 7) drawCow();
+            if(currentLevel >= 5) drawScarecrow();
             drawPlayer();
             drawOwMessage();
             drawMooMessage();
+            drawBooMessage();
+            
 
             if (gameStarted) {
                 update();
                 drawFallingSheep();
+                drawFleeingText();
                 drawUI();
             }
             
@@ -454,44 +571,35 @@
             isGameOver = false;
             playerWon = false;
             missedCount = 0;
+            missedGraves = [];
             sheep = [];
             caughtSheep = [];
             player.x = canvas.width / 2 - 35;
             player.dx = 0;
             goldenHits = 0;
             gameOverMessage = '';
+            loseReason = '';
             owMessage.alpha = 0;
             mooMessage.alpha = 0;
+            booMessage.alpha = 0;
 
             clearInterval(sheepInterval);
 
             // Level specific settings
             switch(level) {
-                case 1:
-                    levelSpeedMultiplier = 1.0;
-                    sheepInterval = setInterval(createSheep, 2000);
-                    goldenSheepChance = 0.1;
-                    levelCatchGoal = 10;
-                    break;
-                case 2:
-                    levelSpeedMultiplier = 1.25;
-                    sheepInterval = setInterval(createSheep, 1700);
-                    goldenSheepChance = 0.15;
-                    levelCatchGoal = 10;
-                    break;
-                case 3:
-                    levelSpeedMultiplier = 1.25;
-                    sheepInterval = setInterval(createSheep, 1700);
-                    goldenSheepChance = 0.2;
-                    levelCatchGoal = 10;
-                    break;
-                case 4:
-                    levelSpeedMultiplier = 1.5;
-                    sheepInterval = setInterval(createSheep, 1400);
-                    goldenSheepChance = 0.25;
-                    levelCatchGoal = Math.floor(canvas.height / scoreSheepHeight);
-                    break;
+                case 1: levelSpeedMultiplier = 1.0; sheepInterval = setInterval(createSheep, 2000); goldenSheepChance = 0.1; levelCatchGoal = 10; break;
+                case 2: levelSpeedMultiplier = 1.25; sheepInterval = setInterval(createSheep, 1700); goldenSheepChance = 0.15; levelCatchGoal = 10; break;
+                case 3: levelSpeedMultiplier = 1.25; sheepInterval = setInterval(createSheep, 1700); goldenSheepChance = 0.2; levelCatchGoal = 10; break;
+                case 4: levelSpeedMultiplier = 1.5; sheepInterval = setInterval(createSheep, 1400); goldenSheepChance = 0.25; levelCatchGoal = 15; break;
+                case 5: levelSpeedMultiplier = 1.5; sheepInterval = setInterval(createSheep, 1400); goldenSheepChance = 0.25; levelCatchGoal = 15; break;
+                case 6: levelSpeedMultiplier = 1.75; sheepInterval = setInterval(createSheep, 1200); goldenSheepChance = 0.3; levelCatchGoal = 15; break;
+                case 7: levelSpeedMultiplier = 1.75; sheepInterval = setInterval(createSheep, 1200); goldenSheepChance = 0.35; levelCatchGoal = 15; break;
+                case 8: levelSpeedMultiplier = 2.0; sheepInterval = setInterval(createSheep, 1000); goldenSheepChance = 0.4; levelCatchGoal = 20; break;
             }
+
+            // Recalculate score sheep size
+            scoreSheepHeight = Math.floor(canvas.height / levelCatchGoal);
+            scoreSheepWidth = scoreSheepHeight; // Maintain 1:1 aspect ratio
 
             // Reset player state
             player.height = originalPlayerState.height;
@@ -504,7 +612,7 @@
 
 
         function handleButtonClick() {
-            if (isGameOver && playerWon && currentLevel < 4) {
+            if (isGameOver && playerWon && currentLevel < 8) {
                 startGame(currentLevel + 1);
             } else {
                 startGame(1);
