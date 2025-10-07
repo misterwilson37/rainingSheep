@@ -31,7 +31,7 @@
         }
         #startButton {
             position: absolute;
-            top: 50%;
+            top: 65%;
             left: 50%;
             transform: translate(-50%, -50%);
             padding: 1rem 2rem;
@@ -58,10 +58,6 @@
             <canvas id="gameCanvas" width="800" height="600"></canvas>
             <button id="startButton">Start Game</button>
         </div>
-        <div style="text-align: center; margin-top: 1rem; font-size: 0.875rem; color: #4B5563;">
-            <p>Caricature image by freddy dendoktoor from <a href="https://www.publicdomainpictures.net/en/view-image.php?image=572081&picture=caricature-old-man-digital-cartoon" target="_blank" rel="noopener noreferrer" style="color: #3B82F6;">PublicDomainPictures.net</a></p>
-            <p>Sheep image from <a href="https://www.needpix.com/photo/160041/sheep-animal-farm-wool-lamb-livestock-mammal-white" target="_blank" rel="noopener noreferrer" style="color: #3B82F6;">needpix.com</a></p>
-        </div>
     </main>
 
     <script>
@@ -75,15 +71,26 @@
         let missedCount = 0;
         let sheepInterval;
         let gameStarted = false;
+        let goldenSheepChance = 0.1; // Start with a 10% chance
+        let goldenHits = 0;
+        let gameOverMessage = '';
+        let owMessage = { text: '', alpha: 0, x: 0, y: 0 };
+
 
         // Player (Sprite) properties
         const player = {
-            x: canvas.width / 2 - 25,
-            y: canvas.height - 60,
-            width: 50,
-            height: 50,
+            x: canvas.width / 2 - 35,
+            y: canvas.height - 90,
+            width: 70,
+            height: 80,
             speed: 7,
             dx: 0
+        };
+        
+        const originalPlayerState = {
+            height: player.height,
+            speed: player.speed,
+            y: player.y
         };
 
         // Sheep properties
@@ -96,35 +103,86 @@
         const scoreSheepWidth = 50;
         const scoreSheepHeight = 50;
         const stackXPosition = canvas.width - scoreSheepWidth - 10;
-
-        // Image objects
-        const playerImage = new Image();
-        const sheepImage = new Image();
         
+        // --- Image Loading ---
+        const allImages = {};
+        const sheepImages = [];
+        let assetsToLoad = 0;
+        let assetsLoaded = 0;
+
+        const imageUrls = {
+            sheep1: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep01.png',
+            sheep2: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep02.png',
+            sheep3: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep03.png',
+            goldenSheep: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/goldenSheep.png',
+            playerDefault: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/farmer.png',
+            playerLeft: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/farmerLeft.png',
+            playerRight: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/farmerRight.png'
+        };
+
+        assetsToLoad = Object.keys(imageUrls).length;
+
+        function onAssetLoad() {
+            assetsLoaded++;
+            if (assetsLoaded === assetsToLoad) {
+                sheepImages.push(allImages.sheep1, allImages.sheep2, allImages.sheep3);
+                gameLoop();
+            }
+        }
+
+        for (const [name, url] of Object.entries(imageUrls)) {
+            const img = new Image();
+            img.onload = onAssetLoad;
+            img.onerror = () => {
+                console.error(`Failed to load image: ${name} at ${url}`);
+                onAssetLoad(); // Count it so game doesn't hang
+            };
+            img.crossOrigin = "Anonymous";
+            img.src = url;
+            allImages[name] = img;
+        }
+
         // --- Drawing Functions ---
 
         function drawPlayer() {
-            ctx.drawImage(playerImage, player.x, player.y, player.width, player.height);
+            let currentImage = allImages.playerDefault;
+            if (player.dx < 0) {
+                currentImage = allImages.playerLeft;
+            } else if (player.dx > 0) {
+                currentImage = allImages.playerRight;
+            }
+            
+            if (currentImage && currentImage.complete && currentImage.naturalHeight !== 0) {
+                ctx.drawImage(currentImage, player.x, player.y, player.width, player.height);
+            } else {
+                // Fallback drawing if an image fails to load
+                ctx.fillStyle = '#3B82F6';
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+            }
         }
 
         function drawFallingSheep() {
             sheep.forEach(s => {
-                ctx.save();
-                ctx.translate(s.x + s.width / 2, s.y + s.height / 2);
-                ctx.rotate(s.rotation);
-                ctx.drawImage(sheepImage, -s.width / 2, -s.height / 2, s.width, s.height);
-                ctx.restore();
+                if (s.image && s.image.complete && s.image.naturalHeight !== 0) {
+                    ctx.save();
+                    ctx.translate(s.x + s.width / 2, s.y + s.height / 2);
+                    ctx.rotate(s.rotation);
+                    ctx.drawImage(s.image, -s.width / 2, -s.height / 2, s.width, s.height);
+                    ctx.restore();
+                }
             });
         }
         
         function drawScoreStack() {
             caughtSheep.forEach((s, index) => {
                 const yPos = canvas.height - (index + 1) * scoreSheepHeight;
-                ctx.save();
-                ctx.translate(stackXPosition + scoreSheepWidth / 2, yPos + scoreSheepHeight / 2);
-                ctx.rotate(s.rotation);
-                ctx.drawImage(sheepImage, -scoreSheepWidth / 2, -scoreSheepHeight / 2, scoreSheepWidth, scoreSheepHeight);
-                ctx.restore();
+                 if (s.image && s.image.complete && s.image.naturalHeight !== 0) {
+                    ctx.save();
+                    ctx.translate(stackXPosition + scoreSheepWidth / 2, yPos + scoreSheepHeight / 2);
+                    ctx.rotate(s.rotation);
+                    ctx.drawImage(s.image, -scoreSheepWidth / 2, -scoreSheepHeight / 2, scoreSheepWidth, scoreSheepHeight);
+                    ctx.restore();
+                 }
             });
         }
         
@@ -133,16 +191,38 @@
             ctx.font = '24px Inter';
             ctx.textAlign = 'left';
             ctx.fillText(`Misses: ${missedCount} / 3`, 10, 30);
+            ctx.textAlign = 'center';
+            ctx.fillText(`Golden Sheep Chance: ${Math.round(goldenSheepChance * 100)}%`, canvas.width / 2, 30);
+        }
+
+        function drawOwMessage() {
+            if (owMessage.alpha > 0) {
+                ctx.save();
+                ctx.globalAlpha = owMessage.alpha;
+                ctx.fillStyle = 'red';
+                ctx.font = 'bold 36px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText(owMessage.text, owMessage.x, owMessage.y);
+                ctx.restore();
+            }
         }
 
         function drawGameOver() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = 'white';
-            ctx.font = 'bold 72px Inter';
             ctx.textAlign = 'center';
-            const message = playerWon ? 'You Win!' : 'You Lose!';
-            ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+
+            // Adjust font size for the longer "smooshed" message
+            if (gameOverMessage.includes('smooshed')) {
+                ctx.font = 'bold 48px Inter';
+                const lines = gameOverMessage.split('!');
+                ctx.fillText(lines[0] + '!', canvas.width / 2, canvas.height / 2 - 30);
+                ctx.fillText(lines[1], canvas.width / 2, canvas.height / 2 + 30);
+            } else {
+                ctx.font = 'bold 72px Inter';
+                ctx.fillText(gameOverMessage, canvas.width / 2, canvas.height / 2);
+            }
 
             startButton.textContent = playerWon ? 'Play Again?' : 'Try Again?';
             startButton.style.display = 'block';
@@ -161,20 +241,45 @@
         function createSheep() {
             const x = Math.random() * (stackXPosition - sheepWidth);
             const y = -sheepHeight;
-            sheep.push({
-                x: x,
-                y: y,
-                width: sheepWidth,
-                height: sheepHeight,
-                speed: Math.random() * 2 + 1,
-                rotation: 0,
-                rotationSpeed: (Math.random() - 0.5) * 0.05
-            });
+            let newSheep;
+
+            if (Math.random() < goldenSheepChance) {
+                newSheep = {
+                    x: x,
+                    y: y,
+                    width: sheepWidth,
+                    height: sheepHeight,
+                    speed: Math.random() * 2 + 2, // A bit faster
+                    rotation: 0,
+                    rotationSpeed: (Math.random() - 0.5) * 0.05,
+                    image: allImages.goldenSheep,
+                    isGolden: true
+                };
+            } else {
+                const randomImage = sheepImages[Math.floor(Math.random() * sheepImages.length)];
+                newSheep = {
+                    x: x,
+                    y: y,
+                    width: sheepWidth,
+                    height: sheepHeight,
+                    speed: Math.random() * 2 + 1,
+                    rotation: 0,
+                    rotationSpeed: (Math.random() - 0.5) * 0.05,
+                    image: randomImage,
+                    isGolden: false
+                };
+            }
+            sheep.push(newSheep);
         }
         
-        function endGame(won) {
+        function endGame(won, message = null) {
             isGameOver = true;
             playerWon = won;
+            if (message) {
+                gameOverMessage = message;
+            } else {
+                gameOverMessage = won ? 'You Win!' : 'You Lose!';
+            }
             sheep = [];
             clearInterval(sheepInterval);
             gameStarted = false;
@@ -191,34 +296,61 @@
                 s.y += s.speed;
                 s.rotation += s.rotationSpeed;
 
+                // Rectangle-based collision detection
                 if (
                     player.x < s.x + s.width &&
                     player.x + player.width > s.x &&
                     player.y < s.y + s.height &&
                     player.y + player.height > s.y
                 ) {
-                    caughtSheep.push(s);
-                    sheep.splice(index, 1);
-                    
-                    if(caughtSheep.length * scoreSheepHeight >= canvas.height){
-                        endGame(true); // Player wins
+                    if (s.isGolden) {
+                        goldenHits++;
+                        owMessage.text = 'OW!';
+                        owMessage.alpha = 1.0;
+                        owMessage.x = player.x + player.width / 2;
+                        owMessage.y = player.y - 10;
+                        if (goldenHits >= 4) {
+                            endGame(false, "You've been smooshed! Game over!");
+                        } else {
+                            player.height = originalPlayerState.height * (1 - goldenHits * 0.25);
+                            player.speed = originalPlayerState.speed * (1 - goldenHits * 0.25);
+                            const heightLost = originalPlayerState.height - player.height;
+                            player.y = originalPlayerState.y + heightLost;
+                        }
+                    } else {
+                        caughtSheep.push(s);
+                        goldenSheepChance += 0.05; // Increase golden sheep chance by 5%
+                        if (goldenSheepChance > 0.8) goldenSheepChance = 0.8; // Cap the chance at 80%
+
+                        if(caughtSheep.length * scoreSheepHeight >= canvas.height){
+                            endGame(true); // Player wins
+                        }
                     }
+                    sheep.splice(index, 1); // Remove sheep from game
                 }
 
                 if (s.y > canvas.height) {
-                    missedCount++;
-                    sheep.splice(index, 1);
-                    if (missedCount >= 3) {
-                        endGame(false); // Player loses
+                    // Only count misses for non-golden sheep
+                    if (!s.isGolden) {
+                        missedCount++;
+                        if (missedCount >= 3) {
+                            endGame(false); // Player loses
+                        }
                     }
+                    sheep.splice(index, 1);
                 }
             });
+
+            if (owMessage.alpha > 0) {
+                owMessage.alpha -= 0.02; // Fade out speed
+            }
         }
 
         function gameLoop() {
             clear();
             drawScoreStack();
             drawPlayer();
+            drawOwMessage();
 
             if (gameStarted) {
                 update();
@@ -239,8 +371,17 @@
             missedCount = 0;
             sheep = [];
             caughtSheep = [];
-            player.x = canvas.width / 2 - 25;
+            player.x = canvas.width / 2 - 35;
             player.dx = 0;
+            goldenSheepChance = 0.1;
+            goldenHits = 0;
+            gameOverMessage = '';
+            owMessage.alpha = 0;
+
+            // Reset player to original state
+            player.height = originalPlayerState.height;
+            player.speed = originalPlayerState.speed;
+            player.y = originalPlayerState.y;
 
             gameStarted = true;
             startButton.style.display = 'none';
@@ -269,25 +410,11 @@
         document.addEventListener('keyup', keyUp);
         startButton.addEventListener('click', startGame);
         
-        // --- Preload Assets & Start ---
-
-        let assetsLoaded = 0;
-        function onAssetLoad() {
-            assetsLoaded++;
-            if (assetsLoaded === 2) {
-                gameLoop(); // Start drawing, but game logic is paused
-            }
-        }
-
-        playerImage.onload = onAssetLoad;
-        playerImage.onerror = () => { console.error("Failed to load player image."); onAssetLoad(); };
-        playerImage.src = 'https://www.publicdomainpictures.net/pictures/580000/velka/caricature-old-man-digital-cartoon.png';
-
-        sheepImage.onload = onAssetLoad;
-        sheepImage.onerror = () => { console.error("Failed to load sheep image."); onAssetLoad(); };
-        sheepImage.src = 'https://storage.needpix.com/rsynced_images/sheep-160041_1280.png';
+        // --- Initial Start ---
+        // gameLoop is now called after all images are loaded.
 
     </script>
 </body>
 </html>
+
 
