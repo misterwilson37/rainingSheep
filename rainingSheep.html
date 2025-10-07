@@ -75,6 +75,7 @@
         let goldenHits = 0;
         let gameOverMessage = '';
         let owMessage = { text: '', alpha: 0, x: 0, y: 0 };
+        let mooMessage = { text: '', alpha: 0, x: 0, y: 0 };
         let currentLevel = 1;
         let levelSpeedMultiplier = 1;
         let levelCatchGoal = 10;
@@ -125,6 +126,7 @@
         let assetsLoaded = 0;
 
         const imageUrls = {
+            background: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/background.png',
             sheep1: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep01.png',
             sheep2: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep02.png',
             sheep3: 'https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/sheep03.png',
@@ -232,6 +234,21 @@
             }
         }
 
+        function drawMooMessage() {
+            if (mooMessage.alpha > 0) {
+                ctx.save();
+                ctx.globalAlpha = mooMessage.alpha;
+                ctx.fillStyle = '#FFD700'; // Golden color
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 2;
+                ctx.font = 'bold 40px Inter';
+                ctx.textAlign = 'center';
+                ctx.strokeText(mooMessage.text, mooMessage.x, mooMessage.y);
+                ctx.fillText(mooMessage.text, mooMessage.x, mooMessage.y);
+                ctx.restore();
+            }
+        }
+
         function drawGameOver() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -261,11 +278,15 @@
         // --- Game Logic ---
 
         function clear() {
-            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            gradient.addColorStop(0, '#87CEEB');
-            gradient.addColorStop(1, '#E0F8FF');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (allImages.background && allImages.background.complete && allImages.background.naturalHeight !== 0) {
+                ctx.drawImage(allImages.background, 0, 0, canvas.width, canvas.height);
+            } else {
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, '#87CEEB');
+                gradient.addColorStop(1, '#E0F8FF');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
         }
 
         function createSheep() {
@@ -281,6 +302,8 @@
             
             sheep.push({
                 x: x, y: y, width: sheepWidth, height: sheepHeight,
+                sx: 0, // horizontal speed for arc
+                hasBounced: false,
                 rotation: 0, rotationSpeed: (Math.random() - 0.5) * 0.05,
                 ...newSheep
             });
@@ -316,23 +339,40 @@
                 }
             }
 
-            sheep.forEach((s) => {
+            // Use a reverse for-loop to safely remove items while iterating
+            for (let i = sheep.length - 1; i >= 0; i--) {
+                const s = sheep[i];
+                
+                // This check prevents a crash if an element is unexpectedly undefined.
+                if (!s) continue;
+
+                // Apply gravity to bounced sheep to create an arc
+                if (s.hasBounced) {
+                    s.speed += 0.2; 
+                }
+
                 s.y += s.speed;
+                s.x += s.sx;
+                
                 if(s.speed < 0) s.rotation -= s.rotationSpeed;
                 else s.rotation += s.rotationSpeed;
 
-                // Bounce sheep off top of screen
-                if(s.y < -s.height && s.speed < 0){
-                    s.speed *= -1;
+                // Remove bounced sheep that go off-screen horizontally without penalty
+                if (s.hasBounced && (s.x + s.width < 0 || s.x > stackXPosition)) {
+                    sheep.splice(i, 1);
+                    continue; 
                 }
 
                 // Bounce sheep off cow's umbrella in levels 3+
                 if(currentLevel >= 3){
                     const umbrella = { x: cow.x, y: cow.y - 30, width: cow.width, height: 30};
                     if(s.x < umbrella.x + umbrella.width && s.x + s.width > umbrella.x && s.y < umbrella.y + umbrella.height && s.y + s.height > umbrella.y){
-                        if(s.speed > 0){ // only bounce if falling down
-                           s.speed *= -1.5; // Make it bounce higher
+                        if(s.speed >= 0){ // only bounce if falling down
+                           s.speed = -8; // Set a fixed upward speed for a consistent bounce height
+                           s.sx = (Math.random() - 0.5) * 4; // Give it a slight horizontal push for an arc
                            s.y = umbrella.y - s.height;
+                           s.hasBounced = true;
+                           mooMessage.text = 'MOO!'; mooMessage.alpha = 1.0; mooMessage.x = cow.x + cow.width / 2; mooMessage.y = cow.y - 10;
                         }
                     }
                 }
@@ -360,7 +400,8 @@
                             endGame(true);
                         }
                     }
-                    sheep = sheep.filter(sh => sh !== s);
+                    sheep.splice(i, 1);
+                    continue;
                 }
 
                 if (s.y > canvas.height) {
@@ -368,11 +409,13 @@
                         missedCount++;
                         if (missedCount >= 3) endGame(false);
                     }
-                    sheep = sheep.filter(sh => sh !== s);
+                    sheep.splice(i, 1);
+                    continue;
                 }
-            });
+            }
 
             if (owMessage.alpha > 0) owMessage.alpha -= 0.02;
+            if (mooMessage.alpha > 0) mooMessage.alpha -= 0.02;
         }
 
         function gameLoop() {
@@ -381,6 +424,7 @@
             if(currentLevel >= 3) drawCow();
             drawPlayer();
             drawOwMessage();
+            drawMooMessage();
 
             if (gameStarted) {
                 update();
@@ -405,6 +449,7 @@
             goldenHits = 0;
             gameOverMessage = '';
             owMessage.alpha = 0;
+            mooMessage.alpha = 0;
 
             clearInterval(sheepInterval);
 
@@ -478,5 +523,4 @@
     </script>
 </body>
 </html>
-
 
