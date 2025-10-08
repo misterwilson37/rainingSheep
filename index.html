@@ -1,9 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- 
+    Falling Sheep
+    All art and ideas by Nico Wilson
+    Implementation by Jake Wilson & Gemini
+-->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raining Sheep</title>
+    <title>Falling Sheep</title>
     <style>
         body {
             display: flex;
@@ -11,6 +16,8 @@
             align-items: center;
             height: 100vh;
             margin: 0;
+            padding: 1rem;
+            box-sizing: border-box;
             background-color: #f0f0f0;
             font-family: 'Inter', sans-serif;
             overflow: hidden; /* Prevent scrolling on mobile */
@@ -20,11 +27,14 @@
             flex-direction: column;
             align-items: center;
             width: 100%;
-            max-width: 800px; /* Set max width for large screens */
+            height: 100%;
+            max-width: 1400px; /* Allow scaling up on larger screens */
+            max-height: 100%;
         }
         #gameContainer {
             position: relative;
             width: 100%;
+            /* Let flexbox handle the height based on aspect ratio */
         }
         #gameCanvas {
             border: 2px solid #333;
@@ -35,6 +45,7 @@
             width: 100%; /* Make canvas responsive */
             height: auto; /* Maintain aspect ratio */
             aspect-ratio: 800 / 618;
+            max-height: 100%;
         }
         #launchScreen {
             position: absolute;
@@ -44,10 +55,18 @@
             height: 100%;
             border-radius: 8px; /* Match canvas */
             z-index: 10;
+            pointer-events: none; /* Allow clicks to pass through to the button */
+        }
+        #credits {
+            margin-top: 1rem;
+            color: #4A5568;
+            text-align: center;
+            font-size: 14px;
+            flex-shrink: 0; /* Prevent credits from shrinking */
         }
         #startButton {
             position: absolute;
-            top: 85%; /* Moved button down further to show stats */
+            top: 76.5%; /* Adjusted button position */
             left: 50%;
             transform: translate(-50%, -50%);
             padding: 1rem 2rem;
@@ -76,6 +95,10 @@
             <img id="launchScreen" src="https://cdn.jsdelivr.net/gh/misterwilson37/rainingSheep/launchScreen.png" alt="Raining Sheep Game">
             <button id="startButton">Start Game</button>
         </div>
+        <div id="credits">
+            All art and ideas by Nico Wilson<br>
+            Implementation by Jake Wilson &amp; Gemini
+        </div>
     </main>
 
     <script>
@@ -83,6 +106,7 @@
         const ctx = canvas.getContext('2d');
         const startButton = document.getElementById('startButton');
         const launchScreen = document.getElementById('launchScreen');
+        const credits = document.getElementById('credits');
 
         // Base game dimensions for scaling
         const GAME_WIDTH = 800;
@@ -432,15 +456,23 @@
                 }
             }
             
-            // --- Draw final stats on all end screens ---
-            ctx.fillStyle = 'white';
             ctx.font = 'bold 24px Inter';
             const finalSavedCount = totalSheepSaved;
-            const statsY = playerWon ? GAME_HEIGHT / 2 + 50 : GAME_HEIGHT / 2 + 80;
-
-            ctx.fillText(`Total Sheep Saved: ${finalSavedCount}`, GAME_WIDTH / 2, statsY);
-            ctx.fillText(`Total Sheep Lost: ${totalSheepLost}`, GAME_WIDTH / 2, statsY + 30);
-            ctx.fillText(`Total Golden Hits: ${totalGoldenHits}`, GAME_WIDTH / 2, statsY + 60);
+            
+            if (playerWon) {
+                const statsY = GAME_HEIGHT / 2 + 50;
+                ctx.fillStyle = 'white';
+                ctx.fillText(`Total Sheep Saved: ${finalSavedCount}`, GAME_WIDTH / 2, statsY);
+                ctx.fillText(`Total Sheep Lost: ${totalSheepLost}`, GAME_WIDTH / 2, statsY + 30);
+                ctx.fillText(`Total Golden Hits: ${totalGoldenHits}`, GAME_WIDTH / 2, statsY + 60);
+            } else {
+                const statsY = GAME_HEIGHT / 2 + 10; // Moved stats up further for better spacing
+                ctx.fillStyle = 'white';
+                ctx.fillText(loseReason, GAME_WIDTH / 2, statsY);
+                ctx.fillText(`Total Sheep Saved: ${finalSavedCount}`, GAME_WIDTH / 2, statsY + 30);
+                ctx.fillText(`Total Sheep Lost: ${totalSheepLost}`, GAME_WIDTH / 2, statsY + 60);
+                ctx.fillText(`Total Golden Hits: ${totalGoldenHits}`, GAME_WIDTH / 2, statsY + 90);
+            }
             
             if (playerWon && currentLevel < 8) {
                 startButton.textContent = `Start Level ${currentLevel + 1}`;
@@ -792,7 +824,7 @@
                 }
             }
             
-            const mainDeck = levelPool.concat(corePool); // Add leftover core sheep back
+            const mainDeck = levelPool;
             shuffleArray(mainDeck); 
             sheepQueue = introSheep.concat(mainDeck);
 
@@ -821,6 +853,7 @@
             gameStarted = true;
             startButton.style.display = 'none';
             launchScreen.style.display = 'none';
+            credits.style.display = 'block'; // Make sure credits are visible
         }
 
 
@@ -903,4 +936,5 @@
     </script>
 </body>
 </html>
+
 
