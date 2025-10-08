@@ -12,6 +12,7 @@
     <style>
         body {
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
@@ -29,12 +30,15 @@
             width: 100%;
             height: 100%;
             max-width: 1400px; /* Allow scaling up on larger screens */
-            max-height: 100%;
         }
         #gameContainer {
             position: relative;
             width: 100%;
-            /* Let flexbox handle the height based on aspect ratio */
+            flex: 1; /* Grow to fill available vertical space */
+            min-height: 0; /* Fix for flexbox overflow issue */
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         #gameCanvas {
             border: 2px solid #333;
@@ -42,17 +46,21 @@
             box-shadow: 0 10px 20px rgba(0,0,0,0.1);
             border-radius: 8px;
             display: block;
-            width: 100%; /* Make canvas responsive */
-            height: auto; /* Maintain aspect ratio */
+            /* CSS to scale properly while maintaining aspect ratio */
             aspect-ratio: 800 / 618;
+            max-width: 100%;
             max-height: 100%;
+            object-fit: contain;
         }
         #launchScreen {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 100%;
+            max-height: 100%;
+            aspect-ratio: 800 / 618;
+            object-fit: cover;
             border-radius: 8px; /* Match canvas */
             z-index: 10;
             pointer-events: none; /* Allow clicks to pass through to the button */
@@ -111,6 +119,9 @@
         // Base game dimensions for scaling
         const GAME_WIDTH = 800;
         const GAME_HEIGHT = 618;
+
+        canvas.width = GAME_WIDTH;
+        canvas.height = GAME_HEIGHT;
 
         // Game State
         let isGameOver = false;
@@ -742,13 +753,8 @@
 
         function gameLoop() {
             // --- Scaling and Resizing ---
-            const currentWidth = canvas.clientWidth;
-            const scale = currentWidth / GAME_WIDTH;
-            canvas.width = currentWidth;
-            canvas.height = currentWidth * (GAME_HEIGHT / GAME_WIDTH);
-
-            ctx.save();
-            ctx.scale(scale, scale);
+            // This is now handled by CSS, but we set the canvas resolution once.
+            // This loop just draws to the fixed internal resolution.
             
             // --- Main Game Draw Cycle ---
             clear();
@@ -779,8 +785,6 @@
                  drawGameOver();
             }
 
-            ctx.restore(); 
-            
             requestAnimationFrame(gameLoop);
         }
         
